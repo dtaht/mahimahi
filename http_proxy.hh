@@ -21,6 +21,7 @@ private:
     void reqres_to_protobuf( HTTP_Record::reqrespair & current_pair, const HTTPResponse & response );
 
     std::vector< HTTP_Record::reqrespair > stored_pairs_;
+    bool first_req;
 public:
     static const std::string client_cert;
     static const std::string server_cert;

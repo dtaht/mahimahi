@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <utility>
+#include <iostream>
 
 #include "http_record.pb.h"
 
@@ -37,6 +38,17 @@ public:
     std::string corresponding_response( const HTTP_Record::http_message & new_req );
 
     size_t num_of_requests( void ) { return pending_.size(); }
+
+    bool has_first_response( void )
+    {
+//        std::cout << "PENDING SIZE: " << pending_.size() << " second: " << pending_.at(0).second << std::endl;
+        if ( pending_.size() > 0 and pending_.at(0).second != "pending" ) {
+            return true;
+        }
+        return false;
+    }
+
+    std::string first_response( void ) { return pending_.at(0).second; }
 };
 
 #endif

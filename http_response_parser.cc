@@ -28,7 +28,7 @@ void HTTPResponseParser::new_request_arrived( const HTTPRequest & request )
     requests_were_head_.push( request.is_head() );
 }
 
-void HTTPResponseParser::parse( const std::string & buf, Archive & archive )
+void HTTPResponseParser::parse( const std::string & buf, Archive & archive, ByteStreamQueue & from_dest )
 {
     if ( buf.empty() ) { /* EOF */
         message_in_progress_.eof();
@@ -38,10 +38,10 @@ void HTTPResponseParser::parse( const std::string & buf, Archive & archive )
     buffer_.append( buf );
 
     /* parse as much as we can */
-    while ( parsing_step( archive ) ) {}
+    while ( parsing_step( archive, from_dest ) ) {}
 }
 
-bool HTTPResponseParser::parsing_step( Archive & archive )
+bool HTTPResponseParser::parsing_step( Archive & archive, ByteStreamQueue & from_dest )
 {
     switch ( message_in_progress_.state() ) {
     case FIRST_LINE_PENDING:
@@ -80,7 +80,10 @@ bool HTTPResponseParser::parsing_step( Archive & archive )
     case COMPLETE:
         if ( not message_in_progress_.is_bulk() ) { /* not a bulk response so we can store it */
             complete_messages_.emplace( std::move( message_in_progress_ ) );
-        } complete_messages_.emplace( HTTPResponse() );
+        } else {
+            cout << "WRITING RESPONSE BACK IN PARSER" << endl;
+            from_dest.push_string( archive.first_response() );
+        }
         message_in_progress_ = HTTPResponse();
         return true;
     }

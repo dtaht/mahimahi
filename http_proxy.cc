@@ -29,7 +29,8 @@ using namespace PollerShortNames;
 
 HTTPProxy::HTTPProxy( const Address & listener_addr )
     : listener_socket_( TCP ),
-      stored_pairs_()
+      stored_pairs_(),
+      first_req( true )
 {
     listener_socket_.bind( listener_addr );
     listener_socket_.listen();
@@ -87,12 +88,20 @@ void HTTPProxy::handle_tcp( Archive & archive )
                 /* responses from server go to response parser and bytestreamqueue */
                 poller.add_action( Poller::Action( server_rw->fd(), Direction::In,
                                                    [&] () {
+                                                       if ( first_req ) {
+                                                           if ( not request_parser.empty() ) { request_parser.pop(); }
+                                                           first_req = false;
+                                                           string buffer = server_rw->read();
+                                                           cout << "read: " << buffer.size() << endl;
+                                                           response_parser.parse( buffer, archive, from_destination );
+                                                           return ResultType::Continue;
+                                                       }
                                                        if ( dst_port == 443 ) { /* SSL_read decrypts when full record -> if ssl, only read if we have full record size available to push */
                                                            if ( from_destination.contiguous_space_to_push() < 16384 ) { return ResultType::Continue; }
                                                        }
                                                        string buffer = server_rw->read_amount( from_destination.contiguous_space_to_push() );
                                                        //from_destination.push_string( buffer );
-                                                       response_parser.parse( buffer, archive );
+                                                       response_parser.parse( buffer, archive, from_destination );
                                                        return ResultType::Continue;
                                                    },
                                                    [&] () { return ( not client_rw->fd().eof() and from_destination.space_available() ); } ) );
@@ -130,6 +139,7 @@ void HTTPProxy::handle_tcp( Archive & archive )
                                                                return ResultType::Continue;
                                                            }
                                                        } else { /* request not listed in archive- send request to server */
+                                                           cout << "SENDING REQUEST TO SERVER" << endl;
                                                            server_rw->write( request_parser.front().str() );
                                                            response_parser.new_request_arrived( request_parser.front() );
                                                            /* add request to current request/response pair */
@@ -144,6 +154,7 @@ void HTTPProxy::handle_tcp( Archive & archive )
                 /* completed responses from server are serialized and bytestreamqueue contents are sent to client */
                 poller.add_action( Poller::Action( client_rw->fd(), Direction::Out,
                                                    [&] () {
+                                                       cout << "WRITING RESPONSE BACK" << endl;
                                                        if ( dst_port == 443 ) {
                                                            from_destination.pop_ssl( move( client_rw ) );
                                                        } else {

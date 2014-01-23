@@ -22,7 +22,6 @@ string::size_type BulkBodyParser::read( const std::string & input_buffer, Archiv
                 std::istringstream ifs( parser_buffer_.substr(0,4));
                 uint32_t total_size;
                 ifs.read(reinterpret_cast<char*>(&total_size), sizeof total_size);
-                cout << "SIZE: " << total_size << endl;
                 requests_left_ = total_size;
                 responses_left_ = total_size;
 
@@ -43,19 +42,16 @@ string::size_type BulkBodyParser::read( const std::string & input_buffer, Archiv
 
         case MESSAGE_HDR: {
             if ( parser_buffer_.size() >= 4 ) { /* have enough for current message size */
-                cout << "PARSER BUFFER SIZE BEFORE SIZE: " << parser_buffer_.size() << endl;
                 std::istringstream its( parser_buffer_.substr(0,4));
                 uint32_t message_size;
                 its.read(reinterpret_cast<char*>(&message_size), sizeof message_size);
                 current_message_size_ = message_size;
-                cout << "MESSAGE SIZE: " << current_message_size_ << endl;
 
                /* Transition to next state */
                 state_ = MESSAGE;
 
                 /* shrink parser_buffer_ */
                 parser_buffer_ = parser_buffer_.substr( 4 );
-                cout << "PARSER BUFFER SIZE AFTER SIZE: " << parser_buffer_.size() << endl;
                 acked_so_far_ = acked_so_far_ + 4;
                 used_now = used_now + 4;
                 break;
@@ -72,12 +68,9 @@ string::size_type BulkBodyParser::read( const std::string & input_buffer, Archiv
                     requests_fd_.write( parser_buffer_.substr(0, current_message_size_).c_str(), current_message_size_);
                     HTTP_Record::http_message request;
                     request.ParseFromString( parser_buffer_.substr( 0, current_message_size_) );
-                    cout << "ADDING REQUEST" << endl;
                     archive.add_request( request );
                     requests_left_ = requests_left_ - 1;
-                    cout << "PENDING SIZE AFTER ADDING: " << archive.num_of_requests() << endl;
                 } else { /* this is a response so store string in pending_ */
-                    cout << "ADDING RESPONSE" << endl;
                     HTTP_Record::http_message response;
                     response.ParseFromString( parser_buffer_.substr( 0, current_message_size_) );
                     string tot_response;
@@ -101,7 +94,6 @@ string::size_type BulkBodyParser::read( const std::string & input_buffer, Archiv
                 parser_buffer_ = parser_buffer_.substr( current_message_size_ );
 
                 if ( responses_left_ == 0 ) { /* entire bulk response is complete */
-                    cout << "FINISHED WITH: " << parser_buffer_.size() << endl;
                     //return acked_so_far_;
                     return ( used_now - last_size_ );
                 }
