@@ -66,7 +66,8 @@ nph_replayserver_cgi_LDADD += protobufs/libhttprecordprotos.a -lm $(protobuf_LIB
 nph_replayserver_cgi_LDFLAGS = -pthread
 
 bin_PROGRAMS += makebulkreply
-makebulkreply_SOURCES = $(common_source) makebulkreply.cc
+makebulkreply_SOURCES = $(common_source) makebulkreply.cc http_message.cc http_message.hh \
+	http_header.cc http_header.hh
 makebulkreply_LDADD = -lrt
 makebulkreply_LDADD += protobufs/libhttprecordprotos.a -lm $(protobuf_LIBS)
 makebulkreply_LDFLAGS = -pthread

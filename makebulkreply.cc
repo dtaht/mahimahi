@@ -12,26 +12,65 @@
 #include "http_record.pb.h"
 #include "exception.hh"
 #include "file_descriptor.hh"
+#include "http_message.hh"
 
 using namespace std;
 
 int main( int argc, char *argv[] )
 {
     try {
-        if ( argc != 2 ) {
-            throw Exception( "Usage", string( argv[0] ) + " folder_with_recorded_content" );
+        if ( argc != 3 ) {
+            throw Exception( "Usage", string( argv[0] ) + " folder_with_recorded_content hostname" );
         }
         string directory( argv[ 1 ] );
         if( directory.back() != '/' ) {
              directory.append( "/" );
         }
+        string passed_header( argv[2] );
         vector< string > files;
         list_files( directory.c_str(), files );
         uint32_t num_files = files.size();
-        cout << "SIZE: " << num_files << endl;
         FileDescriptor bulkreply = SystemCall( "open", open( "bulkreply.proto", O_WRONLY | O_CREAT, 00700 ) );
         SystemCall( "write", write( bulkreply.num(), &num_files, 4 ) );
         unsigned int i;
+
+        string first_response;
+        /* first put GET / response to original host and remove this from list of files */
+        for ( i = 0; i < num_files; i++ ) { // iterate through recorded files and find initial request protobuf
+            FileDescriptor fd = SystemCall( "open", open( files[i].c_str(), O_RDONLY ) );
+            HTTP_Record::reqrespair current_record;
+            current_record.ParseFromFileDescriptor( fd.num() );
+
+            HTTP_Record::http_message current_req;
+            current_req = current_record.req();
+            if (current_req.first_line() == "GET / HTTP/1.1\r\n" ) {
+                string host_header;
+                /* iterate through headers and check if host matches given host */
+                for ( int j = 0; j < current_record.req().headers_size(); j++ ) {
+                    HTTPHeader current_header( current_record.req().headers(j) );
+                    if ( HTTPMessage::equivalent_strings( current_header.key(), "HOST" ) ) {
+                        host_header = current_header.value();
+                           break;
+                    }
+                }
+                if ( host_header.substr(0, host_header.find("\r\n")) == passed_header ) {
+                    /* write request and size to bulk response */
+                    string current_req;
+                    current_record.req().SerializeToString( &current_req );
+                    uint32_t req_size = current_req.size();
+                    SystemCall( "write", write( bulkreply.num(), &req_size, 4 ) );
+                    current_record.req().SerializeToFileDescriptor( bulkreply.num() );
+
+                    /* store first response so we can add that first */
+                    current_record.res().SerializeToString( &first_response );
+                    break;
+                }
+            }
+        }
+        /* remove file from list of files */
+        files.erase( files.begin() + i );
+        num_files = files.size();
+
         for ( i = 0; i < num_files; i++ ) { /* iterate through recorded files and for each request, append size and request to bulkreply */
             FileDescriptor fd = SystemCall( "open", open( files[i].c_str(), O_RDONLY ) );
             HTTP_Record::reqrespair current_record;
@@ -41,15 +80,15 @@ int main( int argc, char *argv[] )
             string current_req;
             current_record.req().SerializeToString( &current_req );
             uint32_t req_size = current_req.size();
-            cout << "SIZE REQ: " << req_size << endl;
-            HTTP_Record::http_message testi;
-            testi.ParseFromString( current_req.substr(0, req_size ) );
-            cout << testi.first_line() << endl;
             SystemCall( "write", write( bulkreply.num(), &req_size, 4 ) );
-            //SystemCall( "write", write( bulkreply.num(), &current_req, sizeof( current_req ) ) );
-            //bulkreply.write( current_req );
             current_record.req().SerializeToFileDescriptor( bulkreply.num() );
         }
+
+        /* add first response */
+        uint32_t first_res_size = first_response.size();
+        SystemCall( "write", write( bulkreply.num(), &first_res_size, 4 ) );
+        bulkreply.write( first_response );
+
         for ( i = 0; i < num_files; i++ ) { /* iterate through recorded files and for each response, append size and response to bulkreply */
             FileDescriptor fd = SystemCall( "open", open( files[i].c_str(), O_RDONLY ) );
             HTTP_Record::reqrespair current_record;
