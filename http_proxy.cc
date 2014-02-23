@@ -120,6 +120,11 @@ void HTTPProxy::handle_tcp( Archive & archive )
                                                    [&] () {
                                                        /* check if request is stored: if pending->wait, if response present->send to client, if neither->send request to server */
                                                        HTTP_Record::http_message complete_request = request_parser.front().toprotobuf();
+                                                       cout << "REQUEST BEING CONSIDERED: " << complete_request.first_line() << endl;
+                                                       for ( int i = 0; i < complete_request.headers_size(); i++ ) {
+                                                           cout << complete_request.headers(i) << endl;
+                                                       }
+
                                                        if ( archive.request_pending( complete_request ) ) {
                                                            cout << "WE ARE HANDLING REQUEST WITH ARCHIVE" << endl;
                                                            while ( archive.request_pending( complete_request ) ) { /* wait until we have the response filled in */
@@ -134,6 +139,7 @@ void HTTPProxy::handle_tcp( Archive & archive )
                                                        } else if ( archive.have_response( complete_request ) ) { /* corresponding response already stored- send to client */
                                                            if ( from_destination.contiguous_space_to_push() >= archive.corresponding_response( complete_request ).size() ) { /* we have space to add response */
                                                                cout << "USING OUR RESPONSE" << endl;
+                                                               cout << "RESPONSE: " << archive.corresponding_response (complete_request ) << endl;
                                                                from_destination.push_string( archive.corresponding_response( complete_request ) );
                                                            } else {
                                                                return ResultType::Continue;
@@ -154,7 +160,7 @@ void HTTPProxy::handle_tcp( Archive & archive )
                 /* completed responses from server are serialized and bytestreamqueue contents are sent to client */
                 poller.add_action( Poller::Action( client_rw->fd(), Direction::Out,
                                                    [&] () {
-                                                       cout << "WRITING RESPONSE BACK" << endl;
+                                                       //cout << "WRITING RESPONSE BACK" << endl;
                                                        if ( dst_port == 443 ) {
                                                            from_destination.pop_ssl( move( client_rw ) );
                                                        } else {
