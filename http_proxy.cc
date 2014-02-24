@@ -128,6 +128,7 @@ void HTTPProxy::handle_tcp( Archive & archive )
                                                            }
                                                            if ( from_destination.contiguous_space_to_push() >= archive.corresponding_response( complete_request ).size() ) { /* we have space to add response */
                                                                from_destination.push_string( request_parser.front().str() );
+                                                               request_parser.pop();
                                                            } else {
                                                                return ResultType::Continue;
                                                            }
@@ -135,6 +136,7 @@ void HTTPProxy::handle_tcp( Archive & archive )
                                                        } else if ( archive.have_response( complete_request ) ) { /* corresponding response already stored- send to client */
                                                            if ( from_destination.contiguous_space_to_push() >= archive.corresponding_response( complete_request ).size() ) { /* we have space to add response */
                                                                from_destination.push_string( archive.corresponding_response( complete_request ) );
+                                                               request_parser.pop();
                                                            } else {
                                                                return ResultType::Continue;
                                                            }
@@ -143,9 +145,10 @@ void HTTPProxy::handle_tcp( Archive & archive )
                                                            response_parser.new_request_arrived( request_parser.front() );
                                                            /* add request to current request/response pair */
                                                            current_pair.mutable_req()->CopyFrom( request_parser.front().toprotobuf() );
+                                                           request_parser.pop();
                                                        }
 
-                                                       request_parser.pop();
+                                                       //request_parser.pop();
                                                        return ResultType::Continue;
                                                    },
                                                    [&] () { return not request_parser.empty(); } ) );
@@ -161,6 +164,7 @@ void HTTPProxy::handle_tcp( Archive & archive )
                                                        }
                                                        if ( not response_parser.empty() ) {
                                                            reqres_to_protobuf( current_pair, response_parser.front() );
+                                                           client_rw->write( response_parser.front().str() );
                                                            response_parser.pop();
                                                        }
                                                        return ResultType::Continue;
