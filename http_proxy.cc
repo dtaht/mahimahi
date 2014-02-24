@@ -92,7 +92,6 @@ void HTTPProxy::handle_tcp( Archive & archive )
                                                            if ( not request_parser.empty() ) { request_parser.pop(); }
                                                            first_req = false;
                                                            string buffer = server_rw->read();
-                                                           cout << "read: " << buffer.size() << endl;
                                                            response_parser.parse( buffer, archive, from_destination );
                                                            return ResultType::Continue;
                                                        }
@@ -120,13 +119,8 @@ void HTTPProxy::handle_tcp( Archive & archive )
                                                    [&] () {
                                                        /* check if request is stored: if pending->wait, if response present->send to client, if neither->send request to server */
                                                        HTTP_Record::http_message complete_request = request_parser.front().toprotobuf();
-                                                       cout << "REQUEST BEING CONSIDERED: " << complete_request.first_line() << endl;
-                                                       for ( int i = 0; i < complete_request.headers_size(); i++ ) {
-                                                           cout << complete_request.headers(i) << endl;
-                                                       }
 
                                                        if ( archive.request_pending( complete_request ) ) {
-                                                           cout << "WE ARE HANDLING REQUEST WITH ARCHIVE" << endl;
                                                            while ( archive.request_pending( complete_request ) ) { /* wait until we have the response filled in */
                                                                sleep( 1 );
                                                            }
@@ -138,14 +132,11 @@ void HTTPProxy::handle_tcp( Archive & archive )
 
                                                        } else if ( archive.have_response( complete_request ) ) { /* corresponding response already stored- send to client */
                                                            if ( from_destination.contiguous_space_to_push() >= archive.corresponding_response( complete_request ).size() ) { /* we have space to add response */
-                                                               cout << "USING OUR RESPONSE" << endl;
-                                                               cout << "RESPONSE: " << archive.corresponding_response (complete_request ) << endl;
                                                                from_destination.push_string( archive.corresponding_response( complete_request ) );
                                                            } else {
                                                                return ResultType::Continue;
                                                            }
                                                        } else { /* request not listed in archive- send request to server */
-                                                           cout << "SENDING REQUEST TO SERVER" << endl;
                                                            server_rw->write( request_parser.front().str() );
                                                            response_parser.new_request_arrived( request_parser.front() );
                                                            /* add request to current request/response pair */
