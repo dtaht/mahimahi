@@ -88,13 +88,13 @@ void HTTPProxy::handle_tcp( Archive & archive )
                 /* responses from server go to response parser and bytestreamqueue */
                 poller.add_action( Poller::Action( server_rw->fd(), Direction::In,
                                                    [&] () {
-                                                       if ( first_req ) {
+                                                       /*if ( first_req ) {
                                                            if ( not request_parser.empty() ) { request_parser.pop(); }
                                                            first_req = false;
                                                            string buffer = server_rw->read();
                                                            response_parser.parse( buffer, archive, from_destination );
                                                            return ResultType::Continue;
-                                                       }
+                                                       }*/
                                                        if ( dst_port == 443 ) { /* SSL_read decrypts when full record -> if ssl, only read if we have full record size available to push */
                                                            if ( from_destination.contiguous_space_to_push() < 16384 ) { return ResultType::Continue; }
                                                        }
@@ -119,6 +119,8 @@ void HTTPProxy::handle_tcp( Archive & archive )
                                                    [&] () {
                                                        /* check if request is stored: if pending->wait, if response present->send to client, if neither->send request to server */
                                                        HTTP_Record::http_message complete_request = request_parser.front().toprotobuf();
+
+                                                       //cout << "REQUEST: " << complete_request.first_line() << endl;
 
                                                        if ( archive.request_pending( complete_request ) ) {
                                                            while ( archive.request_pending( complete_request ) ) { /* wait until we have the response filled in */
