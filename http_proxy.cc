@@ -94,16 +94,17 @@ void HTTPProxy::handle_tcp( Archive & archive )
                                                            string buffer = server_rw->read();
                                                            response_parser.parse( buffer, archive, from_destination );
                                                            return ResultType::Continue;
-                                                       }*/
-                                                       if ( dst_port == 443 ) { /* SSL_read decrypts when full record -> if ssl, only read if we have full record size available to push */
+                                                       }
+                                                       if ( dst_port == 443 ) { // SSL_read decrypts when full record -> if ssl, only read if we have full record size available to push
                                                            if ( from_destination.contiguous_space_to_push() < 16384 ) { return ResultType::Continue; }
                                                        }
-                                                       string buffer = server_rw->read_amount( from_destination.contiguous_space_to_push() );
+                                                       string buffer = server_rw->read_amount( from_destination.contiguous_space_to_push() );*/
+                                                       string buffer = server_rw->read();
                                                        //from_destination.push_string( buffer );
                                                        response_parser.parse( buffer, archive, from_destination );
                                                        return ResultType::Continue;
                                                    },
-                                                   [&] () { return ( not client_rw->fd().eof() and from_destination.space_available() ); } ) );
+                                                   [&] () { return ( not client_rw->fd().eof() /* and from_destination.space_available() */ ); } ) );
 
                 /* requests from client go to request parser */
                 poller.add_action( Poller::Action( client_rw->fd(), Direction::In,
@@ -128,6 +129,7 @@ void HTTPProxy::handle_tcp( Archive & archive )
                                                            }
                                                            if ( from_destination.contiguous_space_to_push() >= archive.corresponding_response( complete_request ).size() ) { /* we have space to add response */
                                                                from_destination.push_string( request_parser.front().str() );
+                                                               cout << "ADDING RESPONSE TO QUEUE (after waiting)" << endl;
                                                                request_parser.pop();
                                                            } else {
                                                                return ResultType::Continue;
@@ -136,12 +138,14 @@ void HTTPProxy::handle_tcp( Archive & archive )
                                                        } else if ( archive.have_response( complete_request ) ) { /* corresponding response already stored- send to client */
                                                            if ( from_destination.contiguous_space_to_push() >= archive.corresponding_response( complete_request ).size() ) { /* we have space to add response */
                                                                from_destination.push_string( archive.corresponding_response( complete_request ) );
+                                                               cout << "ADDING RESPONSE TO QUEUE (directly)" << endl;
                                                                request_parser.pop();
                                                            } else {
                                                                return ResultType::Continue;
                                                            }
                                                        } else { /* request not listed in archive- send request to server */
                                                            server_rw->write( request_parser.front().str() );
+                                                           cout << "SENT REQUEST TO SERVER" << endl;
                                                            response_parser.new_request_arrived( request_parser.front() );
                                                            /* add request to current request/response pair */
                                                            current_pair.mutable_req()->CopyFrom( request_parser.front().toprotobuf() );
@@ -164,6 +168,7 @@ void HTTPProxy::handle_tcp( Archive & archive )
                                                        }
                                                        if ( not response_parser.empty() ) {
                                                            reqres_to_protobuf( current_pair, response_parser.front() );
+                                                           cout << "SENDING RESPONSE BACK FROM PARSER" << endl;
                                                            client_rw->write( response_parser.front().str() );
                                                            response_parser.pop();
                                                        }
