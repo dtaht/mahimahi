@@ -129,7 +129,7 @@ void HTTPProxy::handle_tcp( Archive & archive )
                                                            }
                                                            if ( from_destination.contiguous_space_to_push() >= archive.corresponding_response( complete_request ).size() ) { /* we have space to add response */
                                                                from_destination.push_string( request_parser.front().str() );
-                                                               cout << "ADDING RESPONSE TO QUEUE (after waiting)" << endl;
+                                                               cout << "ADDING RESPONSE TO QUEUE (after waiting): " << complete_request.first_line() << endl;
                                                                request_parser.pop();
                                                            } else {
                                                                return ResultType::Continue;
@@ -138,14 +138,14 @@ void HTTPProxy::handle_tcp( Archive & archive )
                                                        } else if ( archive.have_response( complete_request ) ) { /* corresponding response already stored- send to client */
                                                            if ( from_destination.contiguous_space_to_push() >= archive.corresponding_response( complete_request ).size() ) { /* we have space to add response */
                                                                from_destination.push_string( archive.corresponding_response( complete_request ) );
-                                                               cout << "ADDING RESPONSE TO QUEUE (directly)" << endl;
+                                                               cout << "ADDING RESPONSE TO QUEUE (directly): " << complete_request.first_line() << endl;
                                                                request_parser.pop();
                                                            } else {
                                                                return ResultType::Continue;
                                                            }
                                                        } else { /* request not listed in archive- send request to server */
                                                            server_rw->write( request_parser.front().str() );
-                                                           cout << "SENT REQUEST TO SERVER" << endl;
+                                                           cout << "SENT REQUEST TO SERVER: " << complete_request.first_line() << endl;
                                                            response_parser.new_request_arrived( request_parser.front() );
                                                            /* add request to current request/response pair */
                                                            current_pair.mutable_req()->CopyFrom( request_parser.front().toprotobuf() );
