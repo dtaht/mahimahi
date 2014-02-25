@@ -40,6 +40,7 @@ template <class FerryType>
 template <typename... Targs>
 void PacketShell<FerryType>::start_uplink( const string & shell_prefix,
                                            char ** const user_environment,
+                                           const string & program_name,
                                            Targs&&... Fargs )
 {
     /* g++ bug 55914 makes this hard before version 4.9 */
@@ -79,7 +80,7 @@ void PacketShell<FerryType>::start_uplink( const string & shell_prefix,
                     prepend_shell_prefix( shell_prefix );
 
                     const string shell = shell_path();
-                    SystemCall( "execl", execl( shell.c_str(), shell.c_str(), static_cast<char *>( nullptr ) ) );
+                    SystemCall( "execl", execl( shell.c_str(), shell.c_str(), "-c", program_name.c_str(), static_cast<char *>( nullptr ) ) );
                     return EXIT_FAILURE;
                 } );
 
