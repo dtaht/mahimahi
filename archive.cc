@@ -63,6 +63,9 @@ pair< bool, bool > compare_requests( const HTTP_Record::http_message & saved_req
             if ( new_req.first_line().substr( 0, query_loc_new ) == saved_req.first_line().substr( 0, query_loc_saved ) ) { /* request w/o query string matches */
                 return make_pair( true, true );
             }
+            else { /* request w/o query string doesn't match */
+                return make_pair( false, false );
+            }
         }
     }
     /* compare existing environment variables for request to stored header values */
