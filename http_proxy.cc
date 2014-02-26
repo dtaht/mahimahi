@@ -121,15 +121,12 @@ void HTTPProxy::handle_tcp( Archive & archive )
                                                        /* check if request is stored: if pending->wait, if response present->send to client, if neither->send request to server */
                                                        HTTP_Record::http_message complete_request = request_parser.front().toprotobuf();
 
-                                                       //cout << "REQUEST: " << complete_request.first_line() << endl;
-
                                                        if ( archive.request_pending( complete_request ) ) {
                                                            while ( archive.request_pending( complete_request ) ) { /* wait until we have the response filled in */
                                                                sleep( 1 );
                                                            }
                                                            if ( from_destination.contiguous_space_to_push() >= archive.corresponding_response( complete_request ).size() ) { /* we have space to add response */
                                                                from_destination.push_string( request_parser.front().str() );
-                                                               cout << "ADDING RESPONSE TO QUEUE (after waiting): " << complete_request.first_line() << endl;
                                                                request_parser.pop();
                                                            } else {
                                                                return ResultType::Continue;
@@ -138,14 +135,12 @@ void HTTPProxy::handle_tcp( Archive & archive )
                                                        } else if ( archive.have_response( complete_request ) ) { /* corresponding response already stored- send to client */
                                                            if ( from_destination.contiguous_space_to_push() >= archive.corresponding_response( complete_request ).size() ) { /* we have space to add response */
                                                                from_destination.push_string( archive.corresponding_response( complete_request ) );
-                                                               cout << "ADDING RESPONSE TO QUEUE (directly): " << complete_request.first_line() << endl;
                                                                request_parser.pop();
                                                            } else {
                                                                return ResultType::Continue;
                                                            }
                                                        } else { /* request not listed in archive- send request to server */
                                                            server_rw->write( request_parser.front().str() );
-                                                           cout << "SENT REQUEST TO SERVER: " << complete_request.first_line() << endl;
                                                            response_parser.new_request_arrived( request_parser.front() );
                                                            /* add request to current request/response pair */
                                                            current_pair.mutable_req()->CopyFrom( request_parser.front().toprotobuf() );
@@ -168,7 +163,6 @@ void HTTPProxy::handle_tcp( Archive & archive )
                                                        }
                                                        if ( not response_parser.empty() ) {
                                                            reqres_to_protobuf( current_pair, response_parser.front() );
-                                                           cout << "SENDING RESPONSE BACK FROM PARSER" << endl;
                                                            client_rw->write( response_parser.front().str() );
                                                            response_parser.pop();
                                                        }
