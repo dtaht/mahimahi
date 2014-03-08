@@ -17,6 +17,7 @@
 #include "signalfd.hh"
 #include "netdevice.hh"
 #include "web_server.hh"
+#include "quic_server.hh"
 #include "system_runner.hh"
 #include "config.h"
 #include "socket.hh"
@@ -88,12 +89,14 @@ int main( int argc, char *argv[] )
 
         check_requirements( argc, argv );
 
-        if ( argc != 2 ) {
-            throw Exception( "Usage", string( argv[ 0 ] ) + " folder_with_recorded_content" );
+        if ( argc != 3 ) {
+            throw Exception( "Usage", string( argv[ 0 ] ) + " protocol folder_with_recorded_content" );
         }
 
+        bool use_quic = string( argv[1] ) == "quic";
+
         /* check if user-specified storage folder exists */
-        string directory = argv[1];
+        string directory = argv[2];
         /* make sure directory ends with '/' so we can prepend directory to file name for storage */
         if ( directory.back() != '/' ) {
             directory.append( "/" );
@@ -119,7 +122,8 @@ int main( int argc, char *argv[] )
         list_files( directory, files );
         set< Address > unique_addrs;
         set< string > unique_ips;
-        vector< WebServer > servers;
+        vector< WebServer > web_servers;
+        vector< QuicServer > quic_servers;
 
         unsigned int interface_counter = 0;
 
@@ -140,7 +144,11 @@ int main( int argc, char *argv[] )
 
             auto result2 = unique_addrs.emplace( current_addr );
             if ( result2.second ) { /* new address */
-                servers.emplace_back( current_addr, directory, user );
+                if ( use_quic ) {
+                    quic_servers.emplace_back( current_addr, directory, user );
+                } else {
+                    web_servers.emplace_back( current_addr, directory, user );
+                }
             }
         }
         /* start dnsmasq with created host mapping file */
