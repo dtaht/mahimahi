@@ -155,11 +155,12 @@ void HTTPProxy::handle_tcp( Archive & archive )
                 /* completed responses from server are serialized and bytestreamqueue contents are sent to client */
                 poller.add_action( Poller::Action( client_rw->fd(), Direction::Out,
                                                    [&] () {
-                                                       //cout << "WRITING RESPONSE BACK" << endl;
-                                                       if ( dst_port == 443 ) {
-                                                           from_destination.pop_ssl( move( client_rw ) );
-                                                       } else {
-                                                           from_destination.pop( client_rw->fd() );
+                                                       if ( from_destination.non_empty() ) {
+                                                           if ( dst_port == 443 ) {
+                                                               from_destination.pop_ssl( move( client_rw ) );
+                                                           } else {
+                                                               from_destination.pop( client_rw->fd() );
+                                                           }
                                                        }
                                                        if ( not response_parser.empty() ) {
                                                            reqres_to_protobuf( current_pair, response_parser.front() );
@@ -168,7 +169,7 @@ void HTTPProxy::handle_tcp( Archive & archive )
                                                        }
                                                        return ResultType::Continue;
                                                    },
-                                                   [&] () { return from_destination.non_empty(); } ) );
+                                                   [&] () { return (from_destination.non_empty() or ( not response_parser.empty() ) ); } ) );
 
                 while( true ) {
                     auto poll_result = poller.poll( 60000 );
