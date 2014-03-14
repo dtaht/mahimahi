@@ -67,6 +67,8 @@ void HTTPProxy::handle_tcp( Archive & archive )
 
                 HTTP_Record::reqrespair current_pair;
 
+                int already_sent = 0;
+
                 auto dst_port = original_destaddr.port();
 
                 /* Set destination ip, port and protocol in current request/response pair */
@@ -133,10 +135,21 @@ void HTTPProxy::handle_tcp( Archive & archive )
                                                            }
 
                                                        } else if ( archive.have_response( complete_request ) ) { /* corresponding response already stored- send to client */
-                                                           if ( from_destination.contiguous_space_to_push() >= archive.corresponding_response( complete_request ).size() ) { /* we have space to add response */
-                                                               from_destination.push_string( archive.corresponding_response( complete_request ) );
+
+                                                           /* hold state of amount of message left and send that much? or hold state of amount of message you have sent so far and each time send as much as you can, whether it is the amount you can send or the size of the message left */
+                                                           //if(complete_request.first_line().find("/assets/js/min/homepage.min.js") != string::npos ) { cout << "HAVE HOMEPAGE.MIN.JS IN ARCHIVE, response size is: " << archive.corresponding_response( complete_request ).size() << " and avail in bytestream is: " << from_destination.contiguous_space_to_push() << " and non_empty: " << from_destination.non_empty() << endl; }
+
+                                                           int avail_space = from_destination.contiguous_space_to_push();
+                                                           int left_to_send = archive.corresponding_response( complete_request ).size() - already_sent;
+                                                           if ( avail_space >= left_to_send ) { /* enough space to send rest of message */
+                                                               from_destination.push_string( archive.corresponding_response( complete_request ).substr( already_sent, left_to_send ) );
+                                                               already_sent = 0;
                                                                request_parser.pop();
-                                                           } else {
+                                                           } else if (avail_space < left_to_send and avail_space > 0 ) { /* space for some but not all */
+                                                               from_destination.push_string( archive.corresponding_response( complete_request ).substr( already_sent, avail_space ) );
+                                                               already_sent = already_sent + avail_space;
+                                                           } else { /* avail_space is 0 */
+                                                               assert( avail_space == 0 );
                                                                return ResultType::Continue;
                                                            }
                                                        } else { /* request not listed in archive- send request to server */
