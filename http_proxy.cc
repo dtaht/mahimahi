@@ -19,8 +19,6 @@
 #include "signalfd.hh"
 #include "http_proxy.hh"
 #include "poller.hh"
-#include "bytestream_queue.hh"
-#include "http_request_parser.hh"
 #include "http_response_parser.hh"
 #include "file_descriptor.hh"
 
@@ -104,30 +102,10 @@ void HTTPProxy::handle_tcp( Archive & archive )
                                                        HTTP_Record::http_message complete_request = request_parser.front().toprotobuf();
 
                                                        if ( archive.request_pending( complete_request ) ) {
-                                                           while ( archive.request_pending( complete_request ) ) { /* wait until we have the response filled in */
-                                                               sleep( 1 );
-                                                           }
-                                                           if ( from_destination.contiguous_space_to_push() >= archive.corresponding_response( complete_request ).size() ) { /* we have space to add response */
-                                                               from_destination.push_string( request_parser.front().str() );
-                                                               request_parser.pop();
-                                                           } else {
-                                                               return ResultType::Continue;
-                                                           }
-
+                                                           while ( archive.request_pending( complete_request ) ) {} /* wait until we have the response filled in */
+                                                           add_to_queue( from_destination, archive.corresponding_response( complete_request ), already_sent, request_parser );
                                                        } else if ( archive.have_response( complete_request ) ) { /* corresponding response already stored- send to client */
-                                                           int avail_space = from_destination.contiguous_space_to_push();
-                                                           int left_to_send = archive.corresponding_response( complete_request ).size() - already_sent;
-                                                           if ( avail_space >= left_to_send ) { /* enough space to send rest of message */
-                                                               from_destination.push_string( archive.corresponding_response( complete_request ).substr( already_sent, left_to_send ) );
-                                                               already_sent = 0;
-                                                               request_parser.pop();
-                                                           } else if (avail_space < left_to_send and avail_space > 0 ) { /* space for some but not all */
-                                                               from_destination.push_string( archive.corresponding_response( complete_request ).substr( already_sent, avail_space ) );
-                                                               already_sent = already_sent + avail_space;
-                                                           } else { /* avail_space is 0 */
-                                                               assert( avail_space == 0 );
-                                                               return ResultType::Continue;
-                                                           }
+                                                           add_to_queue( from_destination, archive.corresponding_response( complete_request ), already_sent, request_parser );
                                                        } else { /* request not listed in archive- send request to server */
                                                            server_rw->write( request_parser.front().str() );
                                                            response_parser.new_request_arrived( request_parser.front() );
@@ -170,4 +148,19 @@ void HTTPProxy::handle_tcp( Archive & archive )
 
     /* don't wait around for the reply */
     newthread.detach();
+}
+
+void HTTPProxy::add_to_queue( ByteStreamQueue & responses, string res, int & counter, HTTPRequestParser & req_parser )
+{
+    /* given the counter and message, figure out how much can be added and add to queue and update counter */
+    int avail_space = responses.contiguous_space_to_push();
+    int left_to_send = res.size() - counter;
+    if ( avail_space >= left_to_send ) { /* enough space to send rest of message */
+        responses.push_string( res.substr( counter, left_to_send ) );
+        counter = 0;
+        req_parser.pop();
+    } else if (avail_space < left_to_send and avail_space > 0 ) { /* space for some but not all */
+        responses.push_string( res.substr( counter, avail_space ) );
+        counter = counter + avail_space;
+    }
 }

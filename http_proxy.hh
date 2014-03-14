@@ -11,6 +11,8 @@
 #include "http_record.pb.h"
 #include "http_response.hh"
 #include "archive.hh"
+#include "bytestream_queue.hh"
+#include "http_request_parser.hh"
 
 class HTTPProxy
 {
@@ -18,7 +20,7 @@ private:
     Socket listener_socket_;
 
     /* Pick a random file name and store reqrespair as a serialized string */
-    void reqres_to_protobuf( HTTP_Record::reqrespair & current_pair, const HTTPResponse & response );
+    void add_to_queue( ByteStreamQueue & responses, std::string res, int & counter, HTTPRequestParser & req_parser );
     bool first_req;
 
 public:
