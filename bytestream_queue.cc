@@ -66,7 +66,7 @@ size_t ByteStreamQueue::contiguous_space_to_push( void )
     if ( next_byte_to_push + contiguous_space_to_push >= buffer_.size() ) {
         contiguous_space_to_push = buffer_.size() - next_byte_to_push;
     }
-    assert( contiguous_space_to_push > 0 );
+    //assert( contiguous_space_to_push > 0 );
     return contiguous_space_to_push;
 }
 
