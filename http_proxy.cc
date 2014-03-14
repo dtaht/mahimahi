@@ -29,7 +29,6 @@ using namespace PollerShortNames;
 
 HTTPProxy::HTTPProxy( const Address & listener_addr )
     : listener_socket_( TCP ),
-      stored_pairs_(),
       first_req( true )
 {
     listener_socket_.bind( listener_addr );
@@ -65,16 +64,9 @@ void HTTPProxy::handle_tcp( Archive & archive )
 
                 HTTPResponseParser response_parser;
 
-                HTTP_Record::reqrespair current_pair;
-
                 int already_sent = 0;
 
                 auto dst_port = original_destaddr.port();
-
-                /* Set destination ip, port and protocol in current request/response pair */
-                current_pair.set_ip( original_destaddr.ip() );
-                current_pair.set_port( dst_port );
-                ( dst_port == 443 ) ? current_pair.set_protocol( "HTTPS" ) : current_pair.set_protocol( "HTTP" );
 
                 /* Create Read/Write Interfaces for server and client */
                 std::unique_ptr<ReadWriteInterface> server_rw  = (dst_port == 443) ?
@@ -87,26 +79,14 @@ void HTTPProxy::handle_tcp( Archive & archive )
                 ByteStreamQueue from_destination( ezio::read_chunk_size );
 
                 /* poll on original connect socket and new connection socket to ferry packets */
-                /* responses from server go to response parser and bytestreamqueue */
+                /* responses from server go to response parser */
                 poller.add_action( Poller::Action( server_rw->fd(), Direction::In,
                                                    [&] () {
-                                                       /*if ( first_req ) {
-                                                           if ( not request_parser.empty() ) { request_parser.pop(); }
-                                                           first_req = false;
-                                                           string buffer = server_rw->read();
-                                                           response_parser.parse( buffer, archive, from_destination );
-                                                           return ResultType::Continue;
-                                                       }
-                                                       if ( dst_port == 443 ) { // SSL_read decrypts when full record -> if ssl, only read if we have full record size available to push
-                                                           if ( from_destination.contiguous_space_to_push() < 16384 ) { return ResultType::Continue; }
-                                                       }
-                                                       string buffer = server_rw->read_amount( from_destination.contiguous_space_to_push() );*/
                                                        string buffer = server_rw->read();
-                                                       //from_destination.push_string( buffer );
                                                        response_parser.parse( buffer, archive, from_destination );
                                                        return ResultType::Continue;
                                                    },
-                                                   [&] () { return ( not client_rw->fd().eof() /* and from_destination.space_available() */ ); } ) );
+                                                   [&] () { return ( not client_rw->fd().eof() ); } ) );
 
                 /* requests from client go to request parser */
                 poller.add_action( Poller::Action( client_rw->fd(), Direction::In,
@@ -117,7 +97,7 @@ void HTTPProxy::handle_tcp( Archive & archive )
                                                    },
                                                    [&] () { return not server_rw->fd().eof(); } ) );
 
-                /* completed requests from client are serialized and sent to server */
+                /* completed requests from client are serialized and handled by archive or sent to server */
                 poller.add_action( Poller::Action( server_rw->fd(), Direction::Out,
                                                    [&] () {
                                                        /* check if request is stored: if pending->wait, if response present->send to client, if neither->send request to server */
@@ -135,10 +115,6 @@ void HTTPProxy::handle_tcp( Archive & archive )
                                                            }
 
                                                        } else if ( archive.have_response( complete_request ) ) { /* corresponding response already stored- send to client */
-
-                                                           /* hold state of amount of message left and send that much? or hold state of amount of message you have sent so far and each time send as much as you can, whether it is the amount you can send or the size of the message left */
-                                                           //if(complete_request.first_line().find("/assets/js/min/homepage.min.js") != string::npos ) { cout << "HAVE HOMEPAGE.MIN.JS IN ARCHIVE, response size is: " << archive.corresponding_response( complete_request ).size() << " and avail in bytestream is: " << from_destination.contiguous_space_to_push() << " and non_empty: " << from_destination.non_empty() << endl; }
-
                                                            int avail_space = from_destination.contiguous_space_to_push();
                                                            int left_to_send = archive.corresponding_response( complete_request ).size() - already_sent;
                                                            if ( avail_space >= left_to_send ) { /* enough space to send rest of message */
@@ -155,17 +131,13 @@ void HTTPProxy::handle_tcp( Archive & archive )
                                                        } else { /* request not listed in archive- send request to server */
                                                            server_rw->write( request_parser.front().str() );
                                                            response_parser.new_request_arrived( request_parser.front() );
-                                                           /* add request to current request/response pair */
-                                                           current_pair.mutable_req()->CopyFrom( request_parser.front().toprotobuf() );
                                                            request_parser.pop();
                                                        }
-
-                                                       //request_parser.pop();
                                                        return ResultType::Continue;
                                                    },
                                                    [&] () { return not request_parser.empty(); } ) );
 
-                /* completed responses from server are serialized and bytestreamqueue contents are sent to client */
+                /* completed responses from server are serialized and sent to client along with complete responses in the bytestreamqueue */
                 poller.add_action( Poller::Action( client_rw->fd(), Direction::Out,
                                                    [&] () {
                                                        if ( from_destination.non_empty() ) {
@@ -176,7 +148,6 @@ void HTTPProxy::handle_tcp( Archive & archive )
                                                            }
                                                        }
                                                        if ( not response_parser.empty() ) {
-                                                           reqres_to_protobuf( current_pair, response_parser.front() );
                                                            client_rw->write( response_parser.front().str() );
                                                            response_parser.pop();
                                                        }
@@ -199,19 +170,4 @@ void HTTPProxy::handle_tcp( Archive & archive )
 
     /* don't wait around for the reply */
     newthread.detach();
-}
-
-void HTTPProxy::reqres_to_protobuf( HTTP_Record::reqrespair & current_pair, const HTTPResponse & response )
-{
-    /* if request is present in current request/response pair, add response and add to vector */
-    if ( current_pair.has_req() ) {
-        current_pair.mutable_res()->CopyFrom( response.toprotobuf() );
-        stored_pairs_.emplace_back( current_pair );
-    } else {
-        throw Exception( "Protobuf", "Response ready without Request" );
-    }
-
-    /* clear current request/response pair */
-    current_pair.clear_req();
-    current_pair.clear_res();
 }
