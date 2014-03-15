@@ -89,11 +89,16 @@ int main( int argc, char *argv[] )
 
         check_requirements( argc, argv );
 
-        if ( argc != 3 ) {
-            throw Exception( "Usage", string( argv[ 0 ] ) + " protocol folder_with_recorded_content" );
+        if ( argc < 4 ) {
+          throw Exception( "Usage", string( argv[ 0 ] ) + " protocol folder_with_recorded_content program_to_execute" );
         }
 
         bool use_quic = string( argv[1] ) == "quic";
+
+        vector< string > program_to_run;
+        for ( int num_args = 3; num_args < argc; num_args++ ) {
+          program_to_run.emplace_back( string( argv[ num_args ] ) );
+        }
 
         /* check if user-specified storage folder exists */
         string directory = argv[2];
@@ -168,9 +173,7 @@ int main( int argc, char *argv[] )
                 /* restore environment and tweak bash prompt */
                 environ = user_environment;
                 prepend_shell_prefix( "[replayshell] " );
-                const string shell = shell_path();
-                SystemCall( "execl", execl( shell.c_str(), shell.c_str(), static_cast<char *>( nullptr ) ) );
-
+                run( program_to_run, user_environment );
                 return EXIT_FAILURE;
         } );
         return eventloop( move( child_processes ) );
