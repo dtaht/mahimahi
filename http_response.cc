@@ -77,7 +77,7 @@ void HTTPResponse::calculate_expected_body_size( void )
     }
 }
 
-size_t HTTPResponse::read_in_body( const std::string & str, Archive & archive )
+size_t HTTPResponse::read_in_body( const std::string & str, Archive & archive, ByteStreamQueue & from_dest )
 {
     assert( state_ == BODY_PENDING );
 
@@ -96,16 +96,16 @@ size_t HTTPResponse::read_in_body( const std::string & str, Archive & archive )
         return amount_to_append;
     } else {
         /* body size not known in advance */
-        return read_in_complex_body( str, archive );
+        return read_in_complex_body( str, archive, from_dest );
     }
 }
 
-size_t HTTPResponse::read_in_complex_body( const std::string & str, Archive & archive )
+size_t HTTPResponse::read_in_complex_body( const std::string & str, Archive & archive, ByteStreamQueue & from_dest )
 {
     assert( state_ == BODY_PENDING );
     assert( body_parser_ );
 
-    auto amount_parsed = body_parser_->read( str, archive );
+    auto amount_parsed = body_parser_->read( str, archive, from_dest );
     if ( amount_parsed == std::string::npos ) {
         /* all of it belongs to the body */
         body_.append( str );

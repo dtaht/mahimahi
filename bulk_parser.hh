@@ -16,6 +16,8 @@ private:
     uint32_t requests_left_ {0};
     uint32_t responses_left_ {0};
 
+    bool first_response_sent_ {false};
+
     uint32_t current_message_size_ {0};
 
     std::string parser_buffer_ {""};
@@ -24,7 +26,7 @@ private:
 
     int last_size_ {0};
 public:
-    std::string::size_type read( const std::string &, Archive & archive ) override;
+    std::string::size_type read( const std::string &, Archive & archive, ByteStreamQueue & from_dest ) override;
 
     /* Follow item 2, Section 4.4 of RFC 2616 */
     bool eof( void ) override { return true; };

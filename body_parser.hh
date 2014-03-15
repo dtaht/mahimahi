@@ -4,6 +4,7 @@
 #define BODY_PARSER_HH
 
 #include "archive.hh"
+#include "bytestream_queue.hh"
 
 class BodyParser
 {
@@ -12,7 +13,7 @@ public:
         - entire string belongs to body
         - only some of string (0 bytes to n bytes) belongs to body */
 
-    virtual std::string::size_type read( const std::string & str, Archive & archive ) = 0;
+    virtual std::string::size_type read( const std::string & str, Archive & archive, ByteStreamQueue & from_dest ) = 0;
     virtual bool eof( void ) = 0;
 };
 
@@ -21,7 +22,7 @@ class Rule5BodyParser : public BodyParser
 {
 public:
     /* all of buffer always belongs to body */
-    std::string::size_type read( const std::string &, __attribute__( ( unused ) ) Archive & archive ) override
+    std::string::size_type read( const std::string &, __attribute__( ( unused ) ) Archive & archive, __attribute__( ( unused ) ) ByteStreamQueue & from_dest ) override
     {
         return std::string::npos;
     }

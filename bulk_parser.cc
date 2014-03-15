@@ -8,7 +8,7 @@
 
 using namespace std;
 
-string::size_type BulkBodyParser::read( const std::string & input_buffer, Archive & archive )
+string::size_type BulkBodyParser::read( const std::string & input_buffer, Archive & archive, ByteStreamQueue & from_dest )
 {
     last_size_ = parser_buffer_.size();
     int used_now;
@@ -81,6 +81,10 @@ string::size_type BulkBodyParser::read( const std::string & input_buffer, Archiv
                     tot_response.append( response.body() ); 
                     size_t pos = archive.num_of_requests() - responses_left_;
                     //archive.add_response( parser_buffer_.substr( 0, current_message_size_ ), pos );
+                    if ( not first_response_sent_ ) { /* send response for "GET /" back to client */
+                        from_dest.push_string( tot_response );
+                        first_response_sent_ = true;
+                    }
                     archive.add_response( tot_response, pos );
                     responses_left_ = responses_left_ - 1;
                 }
@@ -95,6 +99,7 @@ string::size_type BulkBodyParser::read( const std::string & input_buffer, Archiv
 
                 if ( responses_left_ == 0 ) { /* entire bulk response is complete */
                     //return acked_so_far_;
+                    first_response_sent_ = false;
                     return ( used_now - last_size_ );
                 }
                 break;

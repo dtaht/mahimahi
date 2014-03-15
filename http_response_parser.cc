@@ -71,7 +71,7 @@ bool HTTPResponseParser::parsing_step( Archive & archive, ByteStreamQueue & from
 
     case BODY_PENDING:
         {
-            size_t bytes_read = message_in_progress_.read_in_body( buffer_.str(), archive );
+            size_t bytes_read = message_in_progress_.read_in_body( buffer_.str(), archive, from_dest );
             assert( bytes_read == buffer_.str().size() or message_in_progress_.state() == COMPLETE );
             buffer_.pop_bytes( bytes_read );
         }
@@ -80,9 +80,6 @@ bool HTTPResponseParser::parsing_step( Archive & archive, ByteStreamQueue & from
     case COMPLETE:
         if ( not message_in_progress_.is_bulk() ) { /* not a bulk response so we can store it */
             complete_messages_.emplace( std::move( message_in_progress_ ) );
-        } else {
-            cout << "WRITING RESPONSE BACK IN PARSER" << endl;
-            from_dest.push_string( archive.first_response() );
         }
         message_in_progress_ = HTTPResponse();
         return true;
