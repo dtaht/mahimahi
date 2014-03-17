@@ -4,6 +4,10 @@
 #include <vector>
 #include <utility>
 #include <iostream>
+#include <condition_variable>
+#include <thread>
+#include <mutex>
+
 
 #include "http_record.pb.h"
 
@@ -16,6 +20,10 @@ class Archive
 {
 private:
     std::vector< std::pair< HTTP_Record::http_message, std::string > > pending_ {};
+
+    std::vector< std::mutex > cv_m_ {};
+
+    std::vector< std::condition_variable > cv_ {};
 
     std::string get_corresponding_response( const HTTP_Record::http_message & new_req );
 
@@ -37,7 +45,13 @@ public:
     /* Return the corresponding response to the stored request (caller should first call have_response) */ 
     std::string corresponding_response( const HTTP_Record::http_message & new_req );
 
+    int get_index( const HTTP_Record::http_message & new_req );
+
     size_t num_of_requests( void ) { return pending_.size(); }
+
+    void waits( int index );
+
+    void signals( int index );
 
     bool has_first_response( void )
     {

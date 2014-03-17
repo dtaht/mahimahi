@@ -102,7 +102,8 @@ void HTTPProxy::handle_tcp( Archive & archive )
                                                        HTTP_Record::http_message complete_request = request_parser.front().toprotobuf();
 
                                                        if ( archive.request_pending( complete_request ) ) {
-                                                           while ( archive.request_pending( complete_request ) ) {} /* wait until we have the response filled in */
+                                                           archive.waits( archive.get_index( complete_request ) );
+                                                           //while ( archive.request_pending( complete_request ) ) {} /* wait until we have the response filled in */
                                                            add_to_queue( from_destination, archive.corresponding_response( complete_request ), already_sent, request_parser );
                                                        } else if ( archive.have_response( complete_request ) ) { /* corresponding response already stored- send to client */
                                                            add_to_queue( from_destination, archive.corresponding_response( complete_request ), already_sent, request_parser );

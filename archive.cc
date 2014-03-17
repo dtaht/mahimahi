@@ -153,13 +153,20 @@ string Archive::get_corresponding_response( const HTTP_Record::http_message & ne
 
 void Archive::add_request( const HTTP_Record::http_message & request )
 {
+    std::condition_variable cv1;
+    std::mutex m1;
     pending_.emplace_back( make_pair( request, "pending" ) );
+    cv_m_.emplace_back( m1 );
+    cv_.emplace_back( cv1 );
 }
 
 void Archive::add_response( const string & response, const size_t position )
 {
     assert( pending_.size() > position );
     pending_.at( position ).second = response;
+
+    /* signal end of wait for condition variable */
+    signals( position );
 }
 
 bool Archive::request_pending( const HTTP_Record::http_message & new_req )
@@ -188,4 +195,55 @@ string Archive::corresponding_response( const HTTP_Record::http_message & new_re
     assert( res != "pending" );
 
     return res;
+}
+
+int Archive::get_index( const HTTP_Record::http_message & new_req )
+{
+    /* returns the index of the request/response pair in the vector---match the request and then return the index */
+
+    vector< pair< HTTP_Record::http_message, int > > potential_matches;
+
+    for ( unsigned int i = 0; i < pending_.size(); i++ ) { /* iterate through pending_ to see if any requests match */
+        pair< bool, bool > res = compare_requests( pending_.at( i ).first, new_req );
+        if ( res.first == true ) { /* request either matches exactly or is a potential match */
+            if ( res.second ==  false ) { /* full match */
+                return i;
+            } else { /* potential match */
+                potential_matches.emplace_back( make_pair( pending_.at( i ).first, i) );
+            }
+        }
+    }
+
+    /* we didn't find an exact match...handle potential matches */
+    if ( potential_matches.size() == 0 ) { /* no potential matches */
+        throw Exception( "Archive", "requested index before checking if response was pending or present" );
+        return -1;
+    } else { /* return response of potential match with largest shared substring in request line */
+        vector< int > longest_str;
+        for ( unsigned int i = 0; i < potential_matches.size(); i++ ) {
+            string current_req_line = potential_matches.at( i ).first.first_line();
+            string new_req_line = new_req.first_line();
+            longest_str.emplace_back( longest_substr( new_req_line, current_req_line ) );
+        }
+        vector< int >::iterator result = max_element( begin( longest_str ), end( longest_str ) );
+        int max_index = distance( begin( longest_str ), result );
+        return potential_matches.at( max_index ).second;
+    }
+}
+
+void Archive::waits( int index )
+{
+/* proxy will call this whenever it sees that it is waiting for a response (it checks if pending, and if so, then it calls wait while giving the index of the response its waiting for */
+
+    std::unique_lock< std::mutex > lk( cv_m_.at( index ) );
+    cv_.at( index ).wait( lk );
+
+    /* Do we need to release lock? It is not in any of the cppreference examples? */
+}
+
+void Archive::signals( int index )
+{
+/* bulk parser will call this (or just the add response method) whenever a response is being added to the archive from the bulk response */
+
+    cv_.at( index ).notify_all();
 }
