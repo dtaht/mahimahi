@@ -7,7 +7,7 @@
 #include <condition_variable>
 #include <thread>
 #include <mutex>
-
+#include <deque>
 
 #include "http_record.pb.h"
 
@@ -21,9 +21,9 @@ class Archive
 private:
     std::vector< std::pair< HTTP_Record::http_message, std::string > > pending_ {};
 
-    std::vector< std::mutex > cv_m_ {};
+    std::vector< std::unique_ptr< std::mutex > > mutexes_ {};
 
-    std::vector< std::condition_variable > cv_ {};
+    std::vector< std::unique_ptr< std::condition_variable >  > cvs_ {};
 
     std::string get_corresponding_response( const HTTP_Record::http_message & new_req );
 

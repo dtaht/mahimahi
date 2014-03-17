@@ -153,11 +153,11 @@ string Archive::get_corresponding_response( const HTTP_Record::http_message & ne
 
 void Archive::add_request( const HTTP_Record::http_message & request )
 {
-    std::condition_variable cv1;
-    std::mutex m1;
+    unique_ptr< mutex > new_mutex ( new std::mutex() );
+    unique_ptr< condition_variable > new_cv (new condition_variable() );
     pending_.emplace_back( make_pair( request, "pending" ) );
-    cv_m_.emplace_back( m1 );
-    cv_.emplace_back( cv1 );
+    mutexes_.emplace_back( move( new_mutex ) );
+    cvs_.emplace_back( move( new_cv ) );
 }
 
 void Archive::add_response( const string & response, const size_t position )
@@ -235,8 +235,8 @@ void Archive::waits( int index )
 {
 /* proxy will call this whenever it sees that it is waiting for a response (it checks if pending, and if so, then it calls wait while giving the index of the response its waiting for */
 
-    std::unique_lock< std::mutex > lk( cv_m_.at( index ) );
-    cv_.at( index ).wait( lk );
+    unique_lock< mutex > lk( *mutexes_.at( index ).get() );
+    cvs_.at( index )->wait( lk );
 
     /* Do we need to release lock? It is not in any of the cppreference examples? */
 }
@@ -245,5 +245,5 @@ void Archive::signals( int index )
 {
 /* bulk parser will call this (or just the add response method) whenever a response is being added to the archive from the bulk response */
 
-    cv_.at( index ).notify_all();
+    cvs_.at( index )->notify_all();
 }
