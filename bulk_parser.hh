@@ -26,7 +26,7 @@ private:
 
     int last_size_ {0};
 public:
-    std::string::size_type read( const std::string &, Archive & archive, ByteStreamQueue & from_dest ) override;
+    std::string::size_type read( const std::string &, ByteStreamQueue & from_dest ) override;
 
     /* Follow item 2, Section 4.4 of RFC 2616 */
     bool eof( void ) override { return true; };

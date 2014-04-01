@@ -21,6 +21,7 @@
 #include "poller.hh"
 #include "http_response_parser.hh"
 #include "file_descriptor.hh"
+#include "archive.hh"
 
 using namespace std;
 using namespace PollerShortNames;
@@ -44,7 +45,7 @@ HTTPProxy::HTTPProxy( const Address & listener_addr )
     SSL_load_error_strings();
 }
 
-void HTTPProxy::handle_tcp( Archive & archive )
+void HTTPProxy::handle_tcp( void )
 {
     thread newthread( [&] ( Socket client ) {
             try {
@@ -81,7 +82,7 @@ void HTTPProxy::handle_tcp( Archive & archive )
                 poller.add_action( Poller::Action( server_rw->fd(), Direction::In,
                                                    [&] () {
                                                        string buffer = server_rw->read();
-                                                       response_parser.parse( buffer, archive, from_destination );
+                                                       response_parser.parse( buffer, from_destination );
                                                        return ResultType::Continue;
                                                    },
                                                    [&] () { return ( not client_rw->fd().eof() ); } ) );
@@ -100,12 +101,11 @@ void HTTPProxy::handle_tcp( Archive & archive )
                                                    [&] () {
                                                        /* check if request is stored: if pending->wait, if response present->send to client, if neither->send request to server */
                                                        HTTP_Record::http_message complete_request = request_parser.front().toprotobuf();
-
-                                                       if ( archive.request_pending( complete_request ) ) {
-                                                           while ( archive.request_pending( complete_request ) ) {} /* wait until we have the response filled in */
-                                                           add_to_queue( from_destination, archive.corresponding_response( complete_request ), already_sent, request_parser );
-                                                       } else if ( archive.have_response( complete_request ) ) { /* corresponding response already stored- send to client */
-                                                           add_to_queue( from_destination, archive.corresponding_response( complete_request ), already_sent, request_parser );
+                                                       if ( Archive::request_pending( complete_request ) ) {
+                                                           while ( Archive::request_pending( complete_request ) ) {} /* wait until we have the response filled in */
+                                                           add_to_queue( from_destination, Archive::corresponding_response( complete_request ), already_sent, request_parser );
+                                                       } else if ( Archive::have_response( complete_request ) ) { /* corresponding response already stored- send to client */
+                                                           add_to_queue( from_destination, Archive::corresponding_response( complete_request ), already_sent, request_parser );
                                                        } else { /* request not listed in archive- send request to server */
                                                            server_rw->write( request_parser.front().str() );
                                                            response_parser.new_request_arrived( request_parser.front() );

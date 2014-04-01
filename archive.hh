@@ -10,36 +10,33 @@
 #ifndef ARCHIVE_HH
 #define ARCHIVE_HH
 
-static const std::string default_filename_template = "apache_config";
-
 class Archive
 {
-private:
-    std::vector< std::pair< HTTP_Record::http_message, std::string > > pending_ {};
-
-    std::string get_corresponding_response( const HTTP_Record::http_message & new_req );
 
 public:
-    Archive() {};
+    static std::vector< std::pair< HTTP_Record::http_message, std::string > > pending_;
+
+    static std::string get_corresponding_response( const HTTP_Record::http_message & new_req );
 
     /* Add a request */
-    void add_request( const HTTP_Record::http_message & request );
+    static void add_request( const HTTP_Record::http_message & request );
 
     /* Add a response */
-    void add_response( const std::string & response, const size_t position );
+    static void add_response( const std::string & response, const size_t position );
 
     /* Do we have a matching request that is pending? */
-    bool request_pending( const HTTP_Record::http_message & new_req );
+    static bool request_pending( const HTTP_Record::http_message & new_req );
 
     /* Do we have a stored response for this request? */
-    bool have_response( const HTTP_Record::http_message & new_req );
+    static bool have_response( const HTTP_Record::http_message & new_req );
 
     /* Return the corresponding response to the stored request (caller should first call have_response) */ 
-    std::string corresponding_response( const HTTP_Record::http_message & new_req );
+    static std::string corresponding_response( const HTTP_Record::http_message & new_req );
 
-    size_t num_of_requests( void ) { return pending_.size(); }
+    static size_t num_of_requests( void ) { return pending_.size(); }
 
-    bool has_first_response( void )
+
+    static bool has_first_response( void )
     {
 //        std::cout << "PENDING SIZE: " << pending_.size() << " second: " << pending_.at(0).second << std::endl;
         if ( pending_.size() > 0 and pending_.at(0).second != "pending" ) {
@@ -48,7 +45,7 @@ public:
         return false;
     }
 
-    std::string first_response( void ) { return pending_.at(0).second; }
+    static std::string first_response( void ) { return pending_.at(0).second; }
 };
 
 #endif

@@ -16,7 +16,6 @@
 #include "dns_proxy.hh"
 #include "http_proxy.hh"
 #include "netdevice.hh"
-#include "archive.hh"
 
 #include "config.h"
 
@@ -25,13 +24,11 @@ using namespace PollerShortNames;
 
 int eventloop( unique_ptr<DNSProxy> && dns_proxy,
                ChildProcess && child_process,
-               unique_ptr<HTTPProxy> && http_proxy,
-               Archive & archive );
+               unique_ptr<HTTPProxy> && http_proxy );
 
 int eventloop( unique_ptr<DNSProxy> && dns_proxy,
                vector<ChildProcess> && child_processes,
-               unique_ptr<HTTPProxy> && http_proxy,
-               Archive & archive );
+               unique_ptr<HTTPProxy> && http_proxy );
 
 int main( int argc, char *argv[] )
 {
@@ -69,9 +66,6 @@ int main( int argc, char *argv[] )
         /* set up NAT between egress and eth0 */
         NAT nat_rule( ingress_addr );
 
-        /* set up archive to store request/response in bulk response from remote proxy */
-        Archive archive;
-
         /* set up http proxy for tcp */
         unique_ptr<HTTPProxy> http_proxy( new HTTPProxy( egress_addr ) );
 
@@ -102,7 +96,7 @@ int main( int argc, char *argv[] )
                         return EXIT_FAILURE;
                     } );
 
-                return eventloop( move( dns_inside ), move( bash_process ), nullptr, archive );
+                return eventloop( move( dns_inside ), move( bash_process ), nullptr );
             }, true ); /* new network namespace */
 
         /* give ingress to container */
@@ -128,14 +122,14 @@ int main( int argc, char *argv[] )
                 drop_privileges();
 
                 /* check if user-specified storage folder exists, and if not, create it */
-                return eventloop( move( dns_outside ), {}, move( http_proxy ), archive );
+                return eventloop( move( dns_outside ), {}, move( http_proxy ) );
             } );
 
         vector<ChildProcess> child_processes;
         child_processes.emplace_back( move( container_process ) );
         child_processes.emplace_back( move( recordr_process ) );
 
-        return eventloop( nullptr, move( child_processes ), nullptr, archive );
+        return eventloop( nullptr, move( child_processes ), nullptr );
     } catch ( const Exception & e ) {
         e.perror();
         return EXIT_FAILURE;
@@ -146,19 +140,17 @@ int main( int argc, char *argv[] )
 
 int eventloop( unique_ptr<DNSProxy> && dns_proxy,
                ChildProcess && child_process,
-               unique_ptr<HTTPProxy> && http_proxy,
-               Archive & archive )
+               unique_ptr<HTTPProxy> && http_proxy )
 {
     vector<ChildProcess> children;
     children.emplace_back( move( child_process ) );
 
-    return eventloop( move( dns_proxy ), move( children ), move( http_proxy ), archive );
+    return eventloop( move( dns_proxy ), move( children ), move( http_proxy ) );
 }
 
 int eventloop( unique_ptr<DNSProxy> && dns_proxy,
                vector<ChildProcess> && child_processes,
-               unique_ptr<HTTPProxy> && http_proxy,
-               Archive & archive )
+               unique_ptr<HTTPProxy> && http_proxy )
 {
     /* set up signal file descriptor */
     SignalMask signals_to_listen_for = { SIGCHLD, SIGCONT, SIGHUP, SIGTERM };
@@ -185,7 +177,7 @@ int eventloop( unique_ptr<DNSProxy> && dns_proxy,
     if ( http_proxy ) {
         poller.add_action( Poller::Action( http_proxy->tcp_listener().fd(), Direction::In,
                                            [&] () {
-                                               http_proxy->handle_tcp( archive );
+                                               http_proxy->handle_tcp();
                                                return ResultType::Continue;
                                            } ) );
     }

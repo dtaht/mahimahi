@@ -14,6 +14,8 @@
 
 using namespace std;
 
+vector< pair< HTTP_Record::http_message, string > > Archive::pending_ = vector< pair< HTTP_Record::http_message, string > >();
+
 string get_header_value( const string & header_to_find, const HTTP_Record::http_message & req )
 {
     for ( int i = 0; i < req.headers_size(); i++ ) { /* iterate through headers until match */

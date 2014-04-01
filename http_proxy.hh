@@ -10,7 +10,6 @@
 #include "socket.hh"
 #include "http_record.pb.h"
 #include "http_response.hh"
-#include "archive.hh"
 #include "bytestream_queue.hh"
 #include "http_request_parser.hh"
 
@@ -29,7 +28,7 @@ public:
     HTTPProxy( const Address & listener_addr );
     Socket & tcp_listener( void ) { return listener_socket_; }
 
-    void handle_tcp( Archive & archive );
+    void handle_tcp( );
 };
 
 #endif /* HTTP_PROXY_HH */
